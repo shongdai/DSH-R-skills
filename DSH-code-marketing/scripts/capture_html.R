@@ -5,8 +5,18 @@
 # 描述: 用 xml2 解析 HTML，定位第一个 <img>，删除其后所有兄弟节点，
 #       再用 Headless Edge/Chrome 全屏截图。
 # 用法: source("capture_html.R"); capture_html("使用说明.html", "output.png")
-# 依赖: xml2 (已装)
+# 依赖: xml2
+# 浏览器: Microsoft Edge（自动检测路径）
 # =============================================================================
+
+# ---- 自动设置浏览器路径 ----
+edge_paths <- c(
+  "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
+  "C:/Program Files/Microsoft/Edge/Application/msedge.exe"
+)
+for (p in edge_paths) {
+  if (file.exists(p)) { Sys.setenv(CHROMOTE_CHROME = p); break }
+}
 
 #' 截取 HTML 为长图 — 截到第一张图即停
 #'

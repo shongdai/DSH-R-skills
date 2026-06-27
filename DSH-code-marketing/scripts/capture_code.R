@@ -5,7 +5,17 @@
 # 描述: 将 R 脚本前 N 行渲染为带 tango 语法高亮的 HTML，再用 webshot2 截图
 # 用法: source("capture_code.R"); capture_code("output.png", "script.R", n = 50)
 # 依赖: webshot2
+# 浏览器: Microsoft Edge（自动检测路径）
 # =============================================================================
+
+# ---- 自动设置浏览器路径 ----
+edge_paths <- c(
+  "C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
+  "C:/Program Files/Microsoft/Edge/Application/msedge.exe"
+)
+for (p in edge_paths) {
+  if (file.exists(p)) { Sys.setenv(CHROMOTE_CHROME = p); break }
+}
 
 #' 截取 R 代码文件前 N 行为 PNG
 #'
