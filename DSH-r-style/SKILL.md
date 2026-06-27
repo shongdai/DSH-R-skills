@@ -4,7 +4,7 @@ description: "统一 R 代码风格规范：产出标准代码头部、install_d
 ---
 # DSH-r-style — R 代码风格统一规范
 
-*基于 `d:\R` 现有 30+ 脚本（P001–P027 系列）提炼的统一 R 代码风格规范*
+*基于现有 30+ 脚本（P001–P027 系列）提炼的统一 R 代码风格规范*
 
 ---
 
@@ -20,7 +20,7 @@ description: "统一 R 代码风格规范：产出标准代码头部、install_d
 
 ## 风格来源
 
-本规范提炼自 `d:\R` 目录中以下脚本族：
+本规范提炼自以下脚本族：
 
 - 富集分析：`【P001】富集cnet图`、`【P002】富集圈图`、`【P004】桑基气泡图`、…、`【P027】分类桑基气泡图`
 - 火山图：`火山图/EnhancedVolcano火山图`、`火山图/ggVolcano火山图`、`火山图/两组火山图`
@@ -36,7 +36,7 @@ description: "统一 R 代码风格规范：产出标准代码头部、install_d
 
 ## 要素 1 — 标准代码头部
 
-**所有 R 脚本必须以如下头部开头**（位置：`d:\R\<项目目录>\<script_name>.R`）：
+**所有 R 脚本必须以如下头部开头**（位置：项目目录下 `<script_name>.R`）：
 
 ```r
 #!/usr/bin/env Rscript
@@ -50,8 +50,7 @@ description: "统一 R 代码风格规范：产出标准代码头部、install_d
 # 修改日期: <YYYY-MM-DD>
 #
 # 依赖:
-#   - R版本: 4.6.0
-#   - R路径: C:\Program Files\R\R-4.6.0\bin\Rscript.exe
+#   - R版本: 4.3.0+
 #   - 主要包: <pkg1>, <pkg2>, ...
 #
 # 输入文件:
@@ -64,7 +63,7 @@ description: "统一 R 代码风格规范：产出标准代码头部、install_d
 #
 # 使用方法:
 #   - R控制台: source("<script_name>.R")
-#   - 命令行:  "C:\Program Files\R\R-4.6.0\bin\Rscript.exe" <script_name>.R
+#   - 命令行:  Rscript <script_name>.R
 # =============================================================================
 ```
 
@@ -363,7 +362,7 @@ cat("  - output.png\n")
 
 当用户要求"统一现有 R 代码"时，按以下流程执行：
 
-1. **扫描** `d:\R` 下所有 `.R` 文件（跳过 `install_dependencies.R`）
+1. **扫描**项目目录下所有 `.R` 文件（跳过 `install_dependencies.R`）
 2. **识别脚本类型**（数据读取 / 绘图 / 火山图 / Venn / 富集 …）
 3. **逐项对照**三大要素检查：
    - 是否有 shebang + 完整代码头部？

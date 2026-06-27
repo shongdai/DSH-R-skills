@@ -4,7 +4,6 @@
 #
 # 描述: 读取 CSV/TSV/TXT/XLSX 文件，自动格式化数值列（p值科学记数、
 #       NES/FC四舍五入），渲染为展示级 HTML 表格后用 webshot2 截图。
-#       兼具输入数据预览和结果表展示两种用途。
 #
 # 用法:
 #   source("capture_table.R")
@@ -33,15 +32,12 @@ for (p in edge_paths) {
 #' @param title      表格标题（NULL 则用文件名）
 #' @param cols       保留列名（NULL 则全部保留）
 #' @param format_num 是否自动格式化数值列，默认 TRUE
-#' @param style      样式： "compact"（紧凑GitHub风格）/ "display"（展示蓝色表头），默认 "display"
 #' @param trunc_cols 需截断的长文本列："auto" 自动检测 / NULL 不截断 / c("geneID", ...)，默认 "auto"
-#' @param trunc_n    截断时保留前 N 项（按分隔符拆分），默认 3
-#' @param vwidth     视口宽度，NULL 则自动计算（compact）或默认 1100（display）
+#' @param vwidth     视口宽度，NULL 则自动计算，默认 NULL
 #' @param encoding   文件编码，默认 UTF-8
 capture_table <- function(data_path, target, nrows = 10, title = NULL,
                           cols = NULL, format_num = TRUE,
-                          style = c("display", "compact"),
-                          trunc_cols = "auto", trunc_n = 3,
+                          trunc_cols = "auto",
                           vwidth = NULL, encoding = "UTF-8") {
   if (!requireNamespace("knitr", quietly = TRUE))
     stop("请安装 knitr: install.packages('knitr')")
@@ -49,8 +45,6 @@ capture_table <- function(data_path, target, nrows = 10, title = NULL,
     stop("请安装 webshot2: install.packages('webshot2')")
   if (!file.exists(data_path))
     stop("文件不存在: ", data_path)
-
-  style <- match.arg(style)
 
   # ---- 读取 ----
   ext <- tolower(tools::file_ext(data_path))
@@ -106,8 +100,8 @@ capture_table <- function(data_path, target, nrows = 10, title = NULL,
         next
       }
 
-      # 类型 2：p 值列（全部在 [0,1] 且最小值 < 0.001）→ 科学记数法
-      if (all(x_clean >= 0 & x_clean <= 1) && min(x_clean) < 0.001) {
+      # 类型 2：小数值列（round 到 2 位会丢失信息）→ 科学记数法
+      if (any(round(x_clean, 2) == 0 & x_clean != 0)) {
         df[[col]] <- format(x, digits = 3, scientific = TRUE)
         next
       }
@@ -117,32 +111,43 @@ capture_table <- function(data_path, target, nrows = 10, title = NULL,
     }
   }
 
-  # ---- 截断长文本列 ----
+  # ---- 计算列宽（取所有行中最长值） ----
+  MAX_COL_CHARS <- 40  # 超过此长度的列自动截断
+  col_widths <- nchar(names(df))  # 先取列名宽度
+  for (i in seq_len(ncol(df))) {
+    col_widths[i] <- max(col_widths[i],
+                         max(nchar(as.character(df[[i]])), na.rm = TRUE))
+  }
+
+  # ---- 自动截断超长列 ----
+  wide_cols <- names(df)[col_widths > MAX_COL_CHARS]
   if (!is.null(trunc_cols)) {
-    # 自动检测：平均字符数 > 60 的字符列
     if (identical(trunc_cols, "auto")) {
-      trunc_cols <- names(df)[vapply(df, function(x) {
-        is.character(x) && mean(nchar(x), na.rm = TRUE) > 60
-      }, logical(1))]
+      trunc_cols <- wide_cols
+    } else {
+      trunc_cols <- intersect(trunc_cols, wide_cols)
     }
     for (col in intersect(trunc_cols, names(df))) {
       x <- as.character(df[[col]])
-      # 尝试按 / 或 , 或 ; 拆分 → 截断
+      # 尝试按 / 或 , 或 ; 拆分 → 截断 3 项
       if (any(grepl("[/;,]", x))) {
         sep <- if (any(grepl("/", x))) "/"
                else if (any(grepl(";", x))) ";"
                else ","
         df[[col]] <- vapply(strsplit(x, sep, fixed = TRUE), function(parts) {
           n <- length(parts)
-          if (n <= trunc_n) return(x)
-          paste0(paste(head(parts, trunc_n), collapse = sep), sep, "\u2026")
+          if (n <= 3) return(paste(parts, collapse = sep))
+          paste0(paste(head(parts, 3), collapse = sep), sep, "\u2026")
         }, character(1))
       } else {
-        # 普通长文本：截断字符数
-        max_chars <- trunc_n * 20
-        df[[col]] <- ifelse(nchar(x) > max_chars,
-          paste0(substr(x, 1, max_chars), "\u2026"), x)
+        df[[col]] <- ifelse(nchar(x) > MAX_COL_CHARS,
+          paste0(substr(x, 1, MAX_COL_CHARS), "\u2026"), x)
       }
+    }
+    # 截断后重新计算列宽
+    for (i in seq_len(ncol(df))) {
+      col_widths[i] <- max(nchar(names(df)[i]),
+                           max(nchar(as.character(df[[i]])), na.rm = TRUE))
     }
   }
 
@@ -152,73 +157,36 @@ capture_table <- function(data_path, target, nrows = 10, title = NULL,
   }
 
   # ---- 计算视口 ----
-  nc <- ncol(df)
-  col_widths <- pmax(
-    nchar(names(df)),
-    vapply(df[1, ], function(x) nchar(as.character(x)), numeric(1))
-  )
-
   if (is.null(vwidth)) {
-    if (style == "compact") {
-      vwidth <- round(sum(col_widths) * 7.5 + 24)
-    } else {
-      vwidth <- max(1100, round(sum(col_widths) * 9 + 40))
-    }
+    vwidth <- max(1100, round(sum(col_widths) * 9 + 40))
   }
 
   # ---- 渲染 HTML ----
-  if (style == "compact") {
-    vh <- nrow(df) * 23 + 32
-    tab <- knitr::kable(df, format = "html", row.names = FALSE,
-                        table.attr = 'style="width:auto;white-space:nowrap;font-size:11px"')
-    html <- paste0(
-      '<!DOCTYPE html><html><head><meta charset="utf-8"><style>',
-      '*{margin:0;padding:0;box-sizing:border-box}',
-      'body{font-family:"Segoe UI",Arial,sans-serif;font-size:11px;',
-      'padding:4px 8px;background:#fff;display:inline-block;width:auto}',
-      'table{border-collapse:collapse;font-size:11px}',
-      'td,th{border:1px solid #d0d7de;padding:3px 7px;text-align:left}',
-      'th{background:#f6f8fa;font-weight:600;color:#1f2328}',
-      'td{color:#24292f}',
-      'tr:nth-child(even){background:#f6f8fa}',
-      '</style></head><body>', tab, '</body></html>'
-    )
-    zoom <- 4
-    delay <- 0.3
-  } else {
-    vh <- NULL
-    tab <- knitr::kable(df, format = "html", row.names = FALSE,
-                        table.attr = 'class="result-table"')
-    html <- paste0(
-      '<!DOCTYPE html><html><head><meta charset="utf-8"><style>',
-      'body{font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif;',
-      'margin:20px;background:#fff}',
-      'h2{color:#333;font-size:16px;margin-bottom:12px}',
-      '.result-table{border-collapse:collapse;width:100%;font-size:13px}',
-      '.result-table th{background:#4472C4;color:#fff;padding:6px 10px;',
-      'text-align:left;font-weight:600}',
-      '.result-table td{padding:5px 10px;border-bottom:1px solid #ddd}',
-      '.result-table tr:nth-child(even){background:#f2f2f2}',
-      '.result-table tr:hover{background:#e8f0fe}',
-      '</style></head><body>',
-      '<h2>', title, '</h2>',
-      tab,
-      '</body></html>'
-    )
-    zoom <- 2
-    delay <- 0.5
-  }
+  tab <- knitr::kable(df, format = "html", row.names = FALSE,
+                      table.attr = 'class="result-table"')
+  html <- paste0(
+    '<!DOCTYPE html><html><head><meta charset="utf-8"><style>',
+    'body{font-family:"Microsoft YaHei","Segoe UI",Arial,sans-serif;',
+    'margin:20px;background:#fff}',
+    'h2{color:#333;font-size:16px;margin-bottom:12px}',
+    '.result-table{border-collapse:collapse;font-size:13px}',
+    '.result-table th{background:#4472C4;color:#fff;padding:6px 10px;',
+    'text-align:left;font-weight:600;white-space:nowrap}',
+    '.result-table td{padding:5px 10px;border-bottom:1px solid #ddd;',
+    'white-space:nowrap}',
+    '.result-table tr:nth-child(even){background:#f2f2f2}',
+    '.result-table tr:hover{background:#e8f0fe}',
+    '</style></head><body>',
+    '<h2>', title, '</h2>',
+    tab,
+    '</body></html>'
+  )
 
   tmp <- tempfile(fileext = ".html")
   writeLines(html, tmp, useBytes = TRUE)
 
   # ---- 截图 ----
-  if (is.null(vh)) {
-    webshot2::webshot(tmp, target, vwidth = vwidth, delay = delay, zoom = zoom)
-  } else {
-    webshot2::webshot(tmp, target, vwidth = vwidth, vheight = vh,
-                      delay = delay, cliprect = "viewport", zoom = zoom)
-  }
+  webshot2::webshot(tmp, target, vwidth = vwidth, delay = 0.5, zoom = 2)
 
   # ---- 自动裁剪白边 ----
   tryCatch({
@@ -281,23 +249,17 @@ if (sys.nframe() == 0L) {
   if (length(args) < 2L) {
     stop("用法:\n",
          "  单文件: Rscript capture_table.R <data.tsv> <output.png> [nrows=10]\n",
-         "  批量:   Rscript capture_table.R --batch <csv_dir> <out_dir> [pattern]\n",
-         "  紧凑:   Rscript capture_table.R <data.tsv> <output.png> <nrows> --compact")
+         "  批量:   Rscript capture_table.R --batch <csv_dir> <out_dir> [pattern]")
   }
-
-  compact <- "--compact" %in% args
-  args <- setdiff(args, "--compact")
 
   if (args[1] == "--batch") {
     csv_dir <- args[2]
     out_dir <- if (length(args) >= 3L) args[3] else csv_dir
     pat     <- if (length(args) >= 4L) args[4] else "\\.csv$"
-    capture_table_batch(csv_dir, pattern = pat, out_dir = out_dir,
-                        style = if (compact) "compact" else "display")
+    capture_table_batch(csv_dir, pattern = pat, out_dir = out_dir)
   } else {
     nr <- if (length(args) >= 3L) as.integer(args[3]) else 10L
-    capture_table(args[1], args[2], nrows = nr,
-                  style = if (compact) "compact" else "display")
+    capture_table(args[1], args[2], nrows = nr)
     cat("capture_table OK: ", args[2], "\n")
   }
 }

@@ -117,14 +117,14 @@ capture_code <- function(target, script, n = 50) {
   html <- paste0(
     '<!DOCTYPE html><html><head><meta charset="utf-8"><style>',
     '*{margin:0;padding:0;box-sizing:border-box}',
-    'body{font-family:Consolas,"Courier New",monospace;font-size:13px;',
-    'background:#f8f8f8;padding:16px 20px;line-height:1.6;color:#2e3436}',
+    'body{font-family:"Times New Roman",serif;font-size:14px;',
+    'background:#ffffff;padding:20px 24px;line-height:1.7;color:#000000}',
     'pre{white-space:pre;margin:0}',
-    '.kw{color:#204a87;font-weight:bold}',
-    '.st{color:#4e9a06}',
-    '.co{color:#204a87;font-style:italic}',
+    '.kw{color:#0000ff;font-weight:bold}',
+    '.st{color:#808080}',
+    '.co{color:#008000}',
     '.fu{color:#000000}',
-    '.dv{color:#0000cf}',
+    '.dv{color:#ff8000}',
     '</style></head><body><pre>',
     paste(hl_lines, collapse = "\n"),
     '</pre></body></html>'
@@ -134,10 +134,10 @@ capture_code <- function(target, script, n = 50) {
   writeLines(html, tmp, useBytes = TRUE)
 
   # 宽度按最长行自适应
-  w <- min(1200, max(840, max(nchar(raw)) * 8.5 + 60))
-  h <- 80L + length(raw) * 22L
+  w <- min(1200, max(900, max(nchar(raw)) * 9 + 64))
+  h <- 80L + length(raw) * 24L
 
-  webshot2::webshot(tmp, target, vwidth = w, vheight = h, delay = 0.2, zoom = 4)
+  webshot2::webshot(tmp, target, vwidth = w, vheight = h, delay = 0.2, zoom = 5)
 
   # 自动裁剪白边
   tryCatch({
